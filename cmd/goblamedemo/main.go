@@ -27,6 +27,9 @@ func main() {
 	fmt.Println(blame.O0(foo_0()).WithAdditionalContext("from main"))
 	fmt.Println()
 
-	var fuck blame.Wrapper = blame.O0(nil)
-	fmt.Println(fuck)
+	var empty_simple blame.Wrapper = blame.O0(nil)
+	fmt.Println("empty_simple", empty_simple)
+
+	empty_recursive := blame.O0(empty_simple)
+	fmt.Println("empty_recursive", empty_recursive)
 }

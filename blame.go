@@ -20,7 +20,7 @@ type Wrapper interface {
 	Is(error) bool
 	Error() string
 	String() string
-	WithAdditionalContext(messages ...string) *impl
+	WithAdditionalContext(messages ...string) Wrapper
 }
 
 type passthrough interface {
@@ -101,7 +101,7 @@ func (w *impl) tunnel() error {
 	return w.err
 }
 
-func (w *impl) WithAdditionalContext(messages ...string) *impl {
+func (w *impl) WithAdditionalContext(messages ...string) Wrapper {
 	if w == nil {
 		return nil
 	}
@@ -109,7 +109,7 @@ func (w *impl) WithAdditionalContext(messages ...string) *impl {
 	return w
 }
 
-func wrap(e error) *impl {
+func wrap(e error) Wrapper {
 	if e == nil {
 		return nil
 	}
@@ -129,7 +129,9 @@ func wrap(e error) *impl {
 	return o
 }
 
-func O0(e error) *impl                                                { return wrap(e) }
-func O1[A any](a A, e error) (A, *impl)                               { return a, wrap(e) }
-func O2[A any, B any](a A, b B, e error) (A, B, *impl)                { return a, b, wrap(e) }
-func O3[A any, B any, C any](a A, b B, c C, e error) (A, B, C, *impl) { return a, b, c, wrap(e) }
+func O0(err error) Wrapper                                 { return wrap(err) }
+func O1[A any](a A, err error) (A, Wrapper)                { return a, wrap(err) }
+func O2[A any, B any](a A, b B, err error) (A, B, Wrapper) { return a, b, wrap(err) }
+func O3[A any, B any, C any](a A, b B, c C, err error) (A, B, C, Wrapper) {
+	return a, b, c, wrap(err)
+}
