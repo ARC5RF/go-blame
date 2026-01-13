@@ -31,6 +31,9 @@ func (w *impl) Is(other error) bool {
 	if w.err == nil {
 		return other == nil
 	}
+	if w.err == other {
+		return true
+	}
 	p, is_p := w.err.(passthrough)
 	if is_p {
 		return p.Is(other)
