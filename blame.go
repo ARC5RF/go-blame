@@ -1,16 +1,47 @@
 package blame
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 	"slices"
 	"strings"
 )
 
+type FileLocation struct {
+	FileName string
+	FileLine string
+	FuncName string
+}
+
+func (fl FileLocation) String() string {
+	maybe_fname := ""
+	if len(fl.FuncName) > 0 {
+		maybe_fname = " " + fl.FuncName
+	}
+	return fmt.Sprintf("%s:%s%s\n", fl.FileName, fl.FileLine, maybe_fname)
+}
+
+func L(maybe_skip ...int) *FileLocation {
+	skip := 0
+	for _, v := range maybe_skip {
+		skip += v
+	}
+	output := &FileLocation{}
+	pc, fname, line_as_int, ok := runtime.Caller(skip + 1)
+	if ok {
+		ffpc := runtime.FuncForPC(pc)
+		if ffpc != nil {
+			output.FuncName = ffpc.Name()
+		}
+		output.FileName = fname
+		output.FileLine = fmt.Sprint(line_as_int)
+	}
+	return output
+}
+
 type impl struct {
-	fname      string
-	name       string
-	line       string
+	l          *FileLocation
 	err        error
 	p          *impl
 	additional []string
@@ -41,10 +72,10 @@ func (w *impl) Is(other error) bool {
 	return false
 }
 
-func emergency_dump(skip int) string {
+func nil_wrapper_method_call(m_name string) string {
 	var output = []string{}
 	for i := 0; true; i++ {
-		pc, file_name, file_line, ok := runtime.Caller(skip + i + 1)
+		pc, file_name, file_line, ok := runtime.Caller(i + 2)
 		if !ok {
 			break
 		}
@@ -56,19 +87,13 @@ func emergency_dump(skip int) string {
 		output = append(output, fmt.Sprintf("%s:%d\n\t%s", file_name, file_line, func_name))
 	}
 	slices.Reverse(output)
-	return strings.Join(output, "\n")
+	return fmt.Sprintf("%s\n\nsomething attempted to invoke blame.impl::%s on nil value\n", strings.Join(output, "\n"), m_name)
 }
 
 func (w *impl) Error() string {
 	if w == nil {
-		return fmt.Sprintf("%s\n\nsomething attempted to invoke blame.impl::Error on nil value\n", emergency_dump(1))
+		return nil_wrapper_method_call("Error")
 	}
-
-	maybe_fname := ""
-	if len(w.fname) > 0 {
-		maybe_fname = " " + w.fname
-	}
-	b := fmt.Sprintf("%s:%s%s\n", w.name, w.line, maybe_fname)
 
 	e := ""
 	if _, ok := w.err.(*impl); ok {
@@ -87,12 +112,12 @@ func (w *impl) Error() string {
 		a = "\t" + strings.Join(append([]string{}, w.additional...), "\n\t") + "\n"
 	}
 
-	return fmt.Sprintf("%s%s%s%s", e, b, a, e_tail)
+	return fmt.Sprintf("%s%s%s%s", e, w.l.String(), a, e_tail)
 }
 
 func (w *impl) String() string {
 	if w == nil {
-		return fmt.Sprintf("%s\n\nsomething attempted to invoke blame.impl::String on nil value\n", emergency_dump(1))
+		return nil_wrapper_method_call("String")
 	}
 	return w.Error()
 }
@@ -106,7 +131,7 @@ func (w *impl) tunnel() error {
 
 func (w *impl) WithAdditionalContext(messages ...string) Wrapper {
 	if w == nil {
-		return nil
+		return &impl{err: errors.New(nil_wrapper_method_call("WithAdditionalContext")), additional: messages, l: L(2)}
 	}
 	w.additional = append(w.additional, messages...)
 	return w
@@ -116,20 +141,17 @@ func wrap(e error) Wrapper {
 	if e == nil {
 		return nil
 	}
-	var o = &impl{err: e, additional: []string{}}
+	var o = &impl{err: e, additional: []string{}, l: L(2)}
 	if w, ok := e.(*impl); ok {
 		w.p = o
 	}
-	pc, fname, fline, ok := runtime.Caller(2)
-	if ok {
-		ffpc := runtime.FuncForPC(pc)
-		if ffpc != nil {
-			o.fname = ffpc.Name()
-		}
-		o.name = fname
-		o.line = fmt.Sprint(fline)
-	}
 	return o
+}
+func F(format string, args ...any) Wrapper {
+	return &impl{err: fmt.Errorf(format, args...), additional: []string{}, l: L(1)}
+}
+func New(message string) Wrapper {
+	return &impl{err: errors.New(message), additional: []string{}, l: L(1)}
 }
 
 func O0(err error) Wrapper                                 { return wrap(err) }
